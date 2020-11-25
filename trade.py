@@ -6,6 +6,7 @@ Created on Tue Nov 17 17:56:12 2020
 @author: fhall & eespinosa
 """
 
+
 import math
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -20,11 +21,22 @@ import networkx as nx
 
 ##############################################################################
 ### DATA
+year = 2010
+from data_loader import df_master, consumption
 
-from data_loader import dfex, df
+
+
+df_subset = df_master[df_master['year'] == year]
+df_subset = df_subset.loc[df_subset.iso_code.notnull()]
+
+consumption_subset = consumption[consumption['year'] == year]
+consumption_subset = consumption_subset.loc[consumption_subset.co2.notnull()]
+consumption_subset = consumption_subset.loc[consumption_subset['country']!='World']
+
 
 # Dataframe of edges
-nodes= df.drop_duplicates(subset=['country_A'], keep='first')
+# nodes= df.drop_duplicates(subset=['country_A'], keep='first')
+nodes= df_subset.drop_duplicates(subset=['country_a'], keep='first')
 
 
 ##############################################################################
@@ -71,22 +83,22 @@ def recordNetworkInfo(g):
 ### CREATE GRAPH
 
 # Create graph with edge attributes: Imports, parteners_consumption, and Imports growth rate= alpha
-G = nx.from_pandas_edgelist(df[['country_A','country_B','Imports','Partn_consump','Alpha']], 'country_A', 'country_B', 
-                            edge_attr=['Imports','Partn_consump','Alpha'], create_using= nx.MultiDiGraph())
+G = nx.from_pandas_edgelist(df[['country_a','country_b','imports','partn_consump','alpha']], 'country_a', 'country_b', 
+                            edge_attr=['imports','partn_consump','alpha'], create_using= nx.MultiDiGraph())
     # set graph layout
 pos = nx.spring_layout(G)
     # convert dataframe to dictionary of attributes
-node_attr = nodes[['country_A','Consumption','Beta','Group']].set_index('country_A').to_dict('index')
+node_attr = nodes[['country_a','consumption','beta','group']].set_index('country_a').to_dict('index')
     # incorporate dictionary of attributes: Consumption, Convergence_rate= Beta, Group= income level
 nx.set_node_attributes(G, node_attr)
 
 
 nextg = nx.MultiDiGraph()
 for i, j, data in G.edges.data(): 
-    nextg.add_edge(i, j, 0, Imports=(1 + data['Alpha'])* data['Imports'])
+    nextg.add_edge(i, j, 0, Imports=(1 + data['alpha'])* data['imports'])
 for i, j, k, weight in nextg.edges(data="weight", keys=True):
     tot_M=nextg.out_degree(i,'Imports') # total imports
-    nextg[i][j][0]['Import_share'] = data['Imports']/tot_M # Imports share
+    nextg[i][j][0]['import_share'] = data['imports']/tot_M # Imports share
    
     
 ##############################################################################
@@ -95,17 +107,17 @@ for i, j, k, weight in nextg.edges(data="weight", keys=True):
 def initialize():
     global G, nextg, pos
     # Create graph with edge attributes: Imports, parteners_consumption, and Imports growth rate= alpha
-    G = nx.from_pandas_edgelist(df[['country_A','country_B','Imports','Partn_consump','Alpha']], 'country_A', 'country_B', 
-                                edge_attr=['Imports','Partn_consump','Alpha'], create_using= nx.MultiDiGraph())
+    G = nx.from_pandas_edgelist(df[['country_a','country_b','imports','partn_consump','alpha']], 'country_a', 'country_b', 
+                                edge_attr=['imports','partn_consump','alpha'], create_using= nx.MultiDiGraph())
         # set graph layout
     pos = nx.spring_layout(G)
         # convert dataframe to dictionary of attributes
-    node_attr = nodes[['country_A','Consumption','Beta','Group']].set_index('country_A').to_dict('index')
+    node_attr = nodes[['country_a','consumption','beta','group']].set_index('country_a').to_dict('index')
         # incorporate dictionary of attributes: Consumption, Convergence_rate= Beta, Group= income level
     nx.set_node_attributes(G, node_attr)
 
-    nx.set_edge_attributes(G, [], 'Consump_trans')
-    nx.set_edge_attributes(G, [], "Consump_growth")
+    nx.set_edge_attributes(G, [], 'consump_trans')
+    nx.set_edge_attributes(G, [], 'consump_growth')
     
     nextg= G.copy()
     
@@ -121,69 +133,59 @@ def initialize():
     
 def update():
     global G, nextg
-    
-    # Compute Imports variation 
 
+    # Compute Imports variation 
     for i, j, k, weight in nextg.edges(data="weight", keys=True): 
         #nextg.add_edge(i, j, 0, Imports=(1 + data['Alpha'])* data['Imports'])
-        nextg[i][j][0]['Imports']= (1 + data['Alpha'])* data['Imports'] 
+        nextg[i][j][0]['imports']= (1 + data['alpha'])* data['imports'] 
 
     # Compute Imports Share for each edge
     for i, j, k, weight in nextg.edges(data="weight", keys=True):
-        tot_M=nextg.out_degree(i,'Imports') # total imports
-        nextg[i][j][0]['Import_share'] = data['Imports']/tot_M # Imports share
+        tot_M=nextg.out_degree(i,'imports') # total imports
+        nextg[i][j][0]['import_share'] = data['imports']/tot_M # Imports share
 
-    # Compute Consumption transmission using= Import_share * Partner_consump
-
+    # Compute Consumption transmission using = Import_share * Partner_consump
     for i, j, k, weight in nextg.edges(data="weight", keys=True):
-        nextg[i][j][0]['Consump_trans'] = nextg.edges[i,j,0]['Import_share'] * data['Partn_consump']
+        nextg[i][j][0]['consump_trans'] = nextg.edges[i,j,0]['import_share'] * data['partn_consump']
         # nextg[i][j][0]['Consump_trans'] = data['Import_share']* data['Partn_consump']
 
         # Compute Consumption growth using= Consumption_transmission * Convergence rate Beta
-        nextg[i][j][0]['Consump_growth'] = nextg.edges[i,j,0]['Consump_trans'] * nextg.nodes(data='Beta')[i]
+        nextg[i][j][0]['consump_growth'] = nextg.edges[i,j,0]['consump_trans'] * nextg.nodes(data='beta')[i]
         # nextg[i][j][0]['Consump_growth'] = data['Consump_trans'] * nextg.nodes(data='Beta')[i]
         
     # Compute total consumption in next period
     for i in nextg.nodes():
-        consumption_growth = 0
-        for j in nextg.neighbors(i):
-            if math.isnan(nextg.edges[i,j,0]['Consump_growth']) == False:
-                consumption_growth += nextg.edges[i,j,0]['Consump_growth']
-
-        nextg.node[i]['Consumption'] = consumption_growth + nextg.nodes(data='Consumption')[i] 
-        # nextg.node[i]['Consumption'] = nextg.out_degree(i,'Consump_growth')+ nextg.nodes(data='Consumption')[i] 
+        nextg.node[i]['consumption'] = nextg.out_degree(i,'consump_growth')+ nextg.nodes(data='consumption')[i] 
         #Update partener_consumption
         for j in nextg.nodes():
             if i in nextg.neighbors(j):
-                nextg[j][i][0]['Partn_consump']= nextg.node[i]['Consumption']
-    
+                nextg[j][i][0]['partn_consump']= nextg.node[i]['consumption']
     
     
 # Total consumption by group of countries (by income-level)    
 def consumption_patterns():
-    global G
+    global nextg
     high_income=0
     middle_income= 0
     low_income= 0
-    for i in G.nodes():
-        if G.node[i]['Group']==1:
-            high_income+= G.node[i]['Consumption']
-        elif G.node[i]['Group']==2:
-            middle_income+= G.node[i]['Consumption']
+    for i in nextg.nodes():
+        if nextg.node[i]['group']==1:
+            high_income+= nextg.node[i]['consumption']
+        elif nextg.node[i]['group']==2:
+            middle_income+= nextg.node[i]['consumption']
         else:
-            low_income+= G.node[i]['Consumption']
+            low_income+= nextg.node[i]['consumption']
     return high_income, middle_income, low_income
 
 
-
-N= 100
+N= 10
 initialize()
 consumption_high=[]
 consumption_middle=[]
 consumption_low=[]
 
 for i in range(N):
-
+    
     H, M, L = consumption_patterns() # Get consumption by groups at the end of period
     consumption_high.append(H) # array of total consumption for high income countries
     consumption_middle.append(M) # array of total consumption for middle income countries
@@ -194,19 +196,14 @@ for i in range(N):
 
     
 plt.plot(range(N),consumption_high, label='Consumption High-income countries')
-plt.plot(range(N),consumption_high, label='Consumption Middle-income countries')
-plt.plot(range(N),consumption_high, label='Consumption Low-income countries')
+plt.plot(range(N),consumption_middle, label='Consumption Middle-income countries')
+plt.plot(range(N),consumption_low, label='Consumption Low-income countries')
 
 plt.xlabel('Time')
 plt.ylabel('Total energy consumption')
 
 
-
-
-
-
-
-
+#################################################################################################################
 
 # def initialize():
 #     global G, nextg, pos
