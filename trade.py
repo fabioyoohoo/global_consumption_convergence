@@ -29,13 +29,8 @@ df_subset = df_master[df_master['year'] == year]
 df_subset = df_subset.loc[df_subset.iso_code.notnull()]
 
 consumption_subset = df_consumption[df_consumption['year'] == year]
-
 consumption_subset = consumption_subset.loc[consumption_subset.co2.notnull()]
 consumption_subset = consumption_subset.loc[consumption_subset['country']!='World']
-
-# Dataframe of edges
-nodes = df_subset.drop_duplicates(subset=['country_a'], keep='first')
-# nodes= df.drop_duplicates(subset=['country_A'], keep='first')
 
 
 # THINGS THE SUBSET DATAFRAME NEEDS
@@ -71,17 +66,30 @@ df = df.loc[df.iso_code_b.notnull()]
 df['exports_share'] = df.apply(lambda row: row['exports'] / row['exports_a'], axis=1)
 # import_share
 df['imports_share'] = df.apply(lambda row: row['imports'] / row['imports_a'], axis=1)
+
 # trade_relation
 
 # consumption_transmission
-
+df['consump_trans'] = 0
 # consumption growth
+co2_growth = df_consumption[df_consumption['year'].isin([2005,2005,2007,2008,2009,2010])]
+co2_growth = co2_growth[['iso_code','co2_growth_abs']].groupby(['iso_code']).agg({'co2_growth_abs':'mean'}).reset_index()
+df = pd.merge(df,co2_growth,'inner',on=['iso_code'])
 
 # alpha
-
+df['alpha'] = 1
 # beta
+df['beta'] = 1
 
+df = df.rename(columns = {'co2_growth_abs':'consump_growth','co2_b':'partn_consump','community':'group'})
+df = df[~df['country_b'].isin([970,955])] # remove nodes that don't have any outgoing links
 
+# Dataframe of edges
+# 'country_a','consumption','beta','group'
+nodes = df[['country_a','consumption','beta','group']].groupby(['country_a']).agg({'consumption':'mean','beta':'mean','group':'mean'}).reset_index()
+nodes = nodes.drop_duplicates(subset=['country_a'], keep='first')
+# nodes = df.drop_duplicates(subset=['country_a'], keep='first')
+# nodes= df.drop_duplicates(subset=['country_A'], keep='first')
 
 ##############################################################################
 ### FUNCTIONS
@@ -141,7 +149,7 @@ nextg = nx.MultiDiGraph()
 for i, j, data in G.edges.data(): 
     nextg.add_edge(i, j, 0, Imports=(1 + data['alpha'])* data['imports'])
 for i, j, k, weight in nextg.edges(data="weight", keys=True):
-    tot_M=nextg.out_degree(i,'Imports') # total imports
+    tot_M=nextg.out_degree(i,'imports') # total imports
     nextg[i][j][0]['import_share'] = data['imports']/tot_M # Imports share
    
     
@@ -198,12 +206,25 @@ def update():
         # nextg[i][j][0]['Consump_growth'] = data['Consump_trans'] * nextg.nodes(data='Beta')[i]
         
     # Compute total consumption in next period
-    for i in nextg.nodes():
-        nextg.node[i]['consumption'] = nextg.out_degree(i,'consump_growth')+ nextg.nodes(data='consumption')[i] 
+    # for i in nextg.nodes():
+    for i in nodes['country_a']:
+        nextg.node[i]['consumption'] = nextg.out_degree(i,'consump_growth') + nextg.nodes(data='consumption')[i] 
         #Update partener_consumption
         for j in nextg.nodes():
             if i in nextg.neighbors(j):
                 nextg[j][i][0]['partn_consump']= nextg.node[i]['consumption']
+    
+    # Compute total consumption in next period
+    # for i in nextg.nodes():
+    #     consumption_growth = 0
+    #     for j in nextg.nodes():
+    #         if (j != i) & (nextg.edges[i,j,0]['consump_growth'] != 'nan'):
+    #             consumption_growth += nextg.edges[i,j,0]['consump_growth']
+    #     nextg.node[i]['consumption'] = consumption_growth + G.nodes[i]['consumption'] 
+    #     #Update partener_consumption
+    #     for j in nextg.nodes():
+    #         if i in nextg.neighbors(j):
+    #             nextg[j][i]['partn_consump'] = nextg.nodes[i]['consumption']
     
     
 # Total consumption by group of countries (by income-level)    
@@ -212,7 +233,7 @@ def consumption_patterns():
     high_income=0
     middle_income= 0
     low_income= 0
-    for i in nextg.nodes():
+    for i in nodes['country_a']:
         if nextg.node[i]['group']==1:
             high_income+= nextg.node[i]['consumption']
         elif nextg.node[i]['group']==2:
@@ -220,7 +241,6 @@ def consumption_patterns():
         else:
             low_income+= nextg.node[i]['consumption']
     return high_income, middle_income, low_income
-
 
 N= 10
 initialize()
@@ -244,4 +264,5 @@ plt.plot(range(N),consumption_middle, label='Consumption Middle-income countries
 plt.plot(range(N),consumption_low, label='Consumption Low-income countries')
 
 plt.xlabel('Time')
-plt.ylabel('Total energy consumption')
+plt.ylabel('Total carbon dioxide from consumption')
+
