@@ -1,0 +1,205 @@
+country_a,a_name,iso_code
+700,Afghanistan,AFG
+339,Albania,ALB
+615,Algeria,DZA
+,Andorra,AND
+540,Angola,AGO
+58,Antigua & Barbuda,ATG
+160,Argentina,ARG
+371,Armenia,ARM
+,Aruba,ABW
+900,Australia,AUS
+305,Austria,AUT
+373,Azerbaijan,AZE
+31,Bahamas,BHS
+692,Bahrain,BHR
+771,Bangladesh,BGD
+53,Barbados,BRB
+370,Belarus,BLR
+211,Belgium,BEL
+80,Belize,BLZ
+434,Benin,BEN
+,Bermuda,BMU
+760,Bhutan,BTN
+145,Bolivia,BOL
+346,Bosnia and Herzegovina,BIH
+571,Botswana,BWA
+140,Brazil,BRA
+835,Brunei,BRN
+355,Bulgaria,BGR
+439,Burkina Faso,BFA
+516,Burundi,BDI
+811,Cambodia,KHM
+471,Cameroon,CMR
+20,Canada,CAN
+402,Cape Verde,CPV
+482,Central African Republic,CAF
+483,Chad,TCD
+155,Chile,CHL
+710,China,CHN
+100,Colombia,COL
+581,Comoros,COM
+484,Congo,COG
+94,Costa Rica,CRI
+,Cote d'Ivoire,CIV
+344,Croatia,HRV
+40,Cuba,CUB
+352,Cyprus,CYP
+316,Czech Republic,CZE
+490,Democratic Republic of the Congo,COD
+390,Denmark,DNK
+522,Djibouti,DJI
+54,Dominica,DMA
+42,Dominican Republic,DOM
+860,East Timor,ETM
+130,Ecuador,ECU
+651,Egypt,EGY
+92,El Salvador,SLV
+411,Equatorial Guinea,GNQ
+531,Eritrea,ERI
+366,Estonia,EST
+530,Ethiopia,ETH
+,Faeroe Islands,FRO
+950,Fiji,FJI
+375,Finland,FIN
+220,France,FRA
+481,Gabon,GAB
+420,Gambia,GMB
+372,Georgia,GEO
+255,Germany,DEU
+452,Ghana,GHA
+350,Greece,GRC
+,Greenland,GRL
+55,Grenada,GRD
+90,Guatemala,GTM
+438,Guinea,GIN
+404,Guinea-Bissau,GNB
+110,Guyana,GUY
+41,Haiti,HTI
+91,Honduras,HND
+,Hong Kong,HKG
+310,Hungary,HUN
+395,Iceland,ISL
+750,India,IND
+850,Indonesia,IDN
+630,Iran,IRN
+645,Iraq,IRQ
+205,Ireland,IRL
+666,Israel,ISR
+325,Italy,ITA
+437,Ivory Coast,CDI
+51,Jamaica,JAM
+740,Japan,JPN
+663,Jordan,JOR
+705,Kazakhstan,KAZ
+501,Kenya,KEN
+946,Kiribati,KIR
+690,Kuwait,KWT
+703,Kyrgyzstan,KGZ
+812,Laos,LAO
+367,Latvia,LVA
+660,Lebanon,LBN
+570,Lesotho,LSO
+450,Liberia,LBR
+620,Libya,LBY
+,Liechtenstein,LIE
+368,Lithuania,LTU
+212,Luxembourg,LUX
+,Macau,MAC
+343,Macedonia,MKD
+580,Madagascar,MDG
+553,Malawi,MWI
+820,Malaysia,MYS
+781,Maldives,MDV
+432,Mali,MLI
+338,Malta,MLT
+,Marshall Islands,MHL
+435,Mauritania,MRT
+590,Mauritius,MUS
+70,Mexico,MEX
+359,Moldova,MDA
+712,Mongolia,MNG
+341,Montenegro,MNE
+600,Morocco,MAR
+541,Mozambique,MOZ
+775,Myanmar,MMR
+565,Namibia,NAM
+970,Nauru,NRU
+790,Nepal,NPL
+210,Netherlands,NLD
+920,New Zealand,NZL
+93,Nicaragua,NIC
+436,Niger,NER
+475,Nigeria,NGA
+731,North Korea,PRK
+385,Norway,NOR
+698,Oman,OMN
+770,Pakistan,PAK
+,Palau,PLW
+,Palestine,PSE
+95,Panama,PAN
+910,Papua New Guinea,PNG
+150,Paraguay,PRY
+135,Peru,PER
+840,Philippines,PHL
+290,Poland,POL
+235,Portugal,PRT
+694,Qatar,QAT
+360,Romania,ROU
+365,Russia,RUS
+517,Rwanda,RWA
+,Saint Kitts and Nevis,KNA
+,Saint Lucia,LCA
+,Saint Vincent and the Grenadines,VCT
+,Samoa,WSM
+403,Sao Tome and Principe,STP
+670,Saudi Arabia,SAU
+433,Senegal,SEN
+,Serbia,SRB
+591,Seychelles,SYC
+451,Sierra Leone,SLE
+830,Singapore,SGP
+317,Slovakia,SVK
+349,Slovenia,SVN
+940,Solomon Islands,SLB
+520,Somalia,SOM
+560,South Africa,ZAF
+732,South Korea,KOR
+,South Sudan,SSD
+230,Spain,ESP
+780,Sri Lanka,LKA
+60,St. Kitts and Nevis,SKN
+56,St. Lucia,SLU
+57,St. Vincent and the Grenadines,SVG
+625,Sudan,SDN
+115,Suriname,SUR
+572,Swaziland,SWZ
+380,Sweden,SWE
+225,Switzerland,CHE
+652,Syria,SYR
+713,Taiwan,TWN
+702,Tajikistan,TJK
+510,Tanzania,TZA
+800,Thailand,THA
+,Timor,TLS
+461,Togo,TGO
+955,Tonga,TON
+52,Trinidad and Tobago,TTO
+616,Tunisia,TUN
+640,Turkey,TUR
+701,Turkmenistan,TKM
+947,Tuvalu,TUV
+500,Uganda,UGA
+369,Ukraine,UKR
+696,United Arab Emirates,ARE
+200,United Kingdom,GBR
+2,United States of America,USA
+165,Uruguay,URY
+704,Uzbekistan,UZB
+935,Vanuatu,VUT
+101,Venezuela,VEN
+816,Vietnam,VNM
+679,Yemen,YEM
+345,Yugoslavia,YUG
+551,Zambia,ZMB
+552,Zimbabwe,ZWE
