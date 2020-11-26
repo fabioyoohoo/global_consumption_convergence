@@ -6,6 +6,7 @@ https://www.carbonbrief.org/paris-2015-tracking-country-climate-pledges
 
 
 | # |	Name				| Consumption CO2
+|---|-------------|--------------------|
 | 1 |	China				| 8500.543000000003
 | 2 |	United States of America	| 5700.1080000000065
 | 3 |	India				| 1700.027000000001
