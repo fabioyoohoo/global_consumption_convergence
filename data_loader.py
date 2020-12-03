@@ -12,7 +12,7 @@ import json as json
 from zipfile import ZipFile
 from io import BytesIO
 from urllib.request import urlopen
-
+import pycountry
 
 '''
 PURPOSE:
@@ -29,23 +29,11 @@ try:
     df_master = pd.read_csv('data/df_master.csv',index_col = 0)
     df_consumption = pd.read_csv('data/df_consumption.csv',index_col = 0)
     joiner_official = pd.read_csv('data/joiner_official.csv', index_col = 0)
-    # dfex = pd.read_csv('data/dfex.csv')
-    # dfex.rename(columns= {'Country_A': 'country_A', 'Country_B': 'country_B','Partners_consump':'Partn_consump', 'Income_level': 'Group',
-    #                 'Convergence rate': 'Beta', 'Imports growth rate': 'Alpha'}, inplace=True)
-    
-    # df = pd.read_csv('data/df_toy_model.csv')
+    df_paris = pd.read_csv('data/df_paris.csv',index_col = 0)
 
 ### LOOP OVER ALL FILES AND PULL FROM GITHUB IF NOT LOCAL
 except IOError:
-    
-    # try: # load toy model data
-    #     df = pd.read_csv('data/df_toy_model.csv')
-    # except IOError:
-    #     # df = pd.read_csv('https://github.com/fabioyoohoo/global_consumption_convergence/blob/main/data/df_toy_model.csv')
-    #     df = pd.read_csv('https://raw.githubusercontent.com/fabioyoohoo/global_consumption_convergence/main/data/df_toy_model.csv')
-    #     df.rename(columns= {'Country_A': 'country_A', 'Country_B': 'country_B','Partners_consump':'Partn_consump', 'Income_level': 'Group',
-    #                 'Convergence rate': 'Beta', 'Imports growth rate': 'Alpha'}, inplace=True)
-    #     df.to_csv('data/df_toy_model.csv')
+
     
     try: # load s1 data
         s1 = pd.read_csv('data/s1.csv',index_col=0)
@@ -55,29 +43,6 @@ except IOError:
                          index_col=0)
         s1.rename(columns = {'a': 'country_a', 'b': 'country_b'}, inplace=True)
         s1.to_csv('data/s1.csv')
-
-    try:
-        s6 = pd.read_csv('data/s6.csv',index_col=0)
-        print('opened s6')
-    except IOError:
-        url = 'https://github.com/fabioyoohoo/global_consumption_convergence/blob/main/data/s6.csv.zip?raw=true'
-        z = urlopen(url)
-        myzip = ZipFile(BytesIO(z.read())).extract('s6.csv')
-        s6 = pd.read_csv(myzip, index_col = 0)
-        s6.rename(columns = {'Country A': 'country_a', 'Country B': 'country_b', 'Year': 'year'}, inplace=True)
-        s6.to_csv('data/s6.csv')
-
-    try:
-        s7 = pd.read_csv('data/s7.csv',index_col=0)
-        print('opened s7')
-    except IOError:
-        url = 'https://raw.githubusercontent.com/fabioyoohoo/global_consumption_convergence/main/data/trade_groups.csv'
-        s7 = pd.read_csv(url, engine = 'python', index_col = 0)
-        s7.rename(columns = {"Country's numerical code": 'country_a', 
-                             "Country's 3-letter code": 'iso_code', 
-                             'Community label': 'community'}, inplace=True)
-        s7.to_csv('data/s7.csv')
-    
     
     try:
         consumption = pd.read_csv('data/consumption.csv', index_col=0)
@@ -99,27 +64,86 @@ except IOError:
         
         
     try:
-        joiner_official = pd.read_csv('data/joiner_official.csv')
+        joiner_official = pd.read_csv('data/joiner_official.csv', index_col = 0)
         print('opened joiner')
     except IOError:
         joiner_official = pd.read_csv('https://raw.githubusercontent.com/fabioyoohoo/global_consumption_convergence/main/data/joiner_official.csv')
         joiner_official.drop(['a_name'],axis=1,inplace=True)
         joiner_official.to_csv('data/joiner_official.csv')
     
+    
+    try:
+        paris = pd.read_csv('data/paris.csv')
+        print('opened paris')
+    except IOError:
+        # pull from github
+        paris = pd.read_csv('https://raw.githubusercontent.com/fabioyoohoo/global_consumption_convergence/main/data/paris.csv')
+        
+        
+        paris.to_csv('data/joiner_official.csv')
+        
+    
     ##########################################################################
     #### MERGE FILES TOGETHER
+    
+    # VARIABLES NEEDED:
+        # country_a
+        # country_b
+        # iso_code (a and b)
+        # df.apply(lambda row: row['gdp'] / row['population'], axis=1)
     
     # merge s1:s6 on country_a and country_b -> x
     # merge x:s7 on country_a
     # merge x:consumption on iso_code
-    df_consumption = pd.merge(consumption,gdp,'left',on=['iso_code','year'])
+
+    consumption = pd.merge(consumption,gdp,'left',on=['iso_code','year'])
+    consumption['gdp'].fillna(consumption['value'],inplace=True)
+    df_consumption = consumption[['iso_code','year','co2','consumption_co2','population','gdp']]
     df_consumption.to_csv('data/df_consumption.csv')
     
+    df_consumption_a = df_consumption.rename({'iso_code':'iso_code_a'},axis=1)
+    df_consumption_b = df_consumption.rename({'iso_code':'iso_code_b','co2':'co2_b','consumption_co2':'consumption_co2_b',
+                                              'population':'population_b','gdp':'gdp_b'},axis=1)
     
-    merge1 = pd.merge(s1,s6,how='left',on =['country_a', 'country_b', 'year'])
-    merge2 = pd.merge(merge1,s7,how='left',on=['country_a','year'])
-    merge2.drop(['iso_code'],axis=1,inplace=True)
-    merge3 = pd.merge(merge2,joiner_official,how='left',on=['country_a'])
-    df_master = merge3.loc[merge3['iso_code'].notnull()]
+    joiner_b = joiner_official.rename({'country_a':'country_b'},axis=1)
     
+    merge1 = pd.merge(s1,joiner_official,how='left',on=['country_a'])
+    merge2 = pd.merge(merge1, joiner_b,how='left',on=['country_b'])
+    merge2 = merge2.rename({'iso_code_x':'iso_code_a','iso_code_y':'iso_code_b'},axis=1)
+    merge2 = merge2.loc[merge2['iso_code_a'].notnull()]
+    merge2 = merge2.loc[merge2['iso_code_b'].notnull()]
+    
+    
+    # merge df_master and consumption
+    merge3 = pd.merge(merge2,df_consumption_a, 'left',on = ['iso_code_a','year'])
+    merge4 = pd.merge(merge3,df_consumption_b, 'left',on = ['iso_code_b','year'])
+    
+    
+    merge4 = merge4.loc[merge4.consumption_co2.notnull()]
+    merge4 = merge4.loc[merge4.consumption_co2_b.notnull()]
+    
+    # compute total imports and exports
+    country_a = merge4[['country_a','year','imports','exports']].groupby(['country_a','year']).agg({'imports':'sum','exports':'sum'}).reset_index()
+    country_a.rename(columns = {'imports':'imports_a','exports':'exports_a'}, inplace=True)
+    
+    country_b = merge4[['country_b','year','imports','exports']].groupby(['country_b','year']).agg({'imports':'sum','exports':'sum'}).reset_index()
+    country_b.rename(columns = {'imports':'imports_b','exports':'exports_b'}, inplace=True)    
+    
+    
+    merge5 = pd.merge(merge4,country_a, 'left', on = ['country_a','year'])
+    merge6 = pd.merge(merge5,country_b, 'left', on = ['country_b','year'])
+    
+
+    # filters
     df_master.to_csv('data/df_master.csv')
+    
+
+    # PARIS - note Japan's target is set on 2013 emissions levels...
+    polution = df_consumption[['iso_code','year','consumption_co2']]
+    polution_2005 = polution[polution['year']== 2005]
+    df_paris = pd.merge(paris,polution,'left',left_on=('iso_code','base year'),right_on=('iso_code','year'))
+    df_paris = pd.merge(df_paris,polution_2005,'left',left_on=('iso_code'),right_on=('iso_code'))
+    df_paris['cagr'] = df_paris.apply(lambda row: 
+                              ((row['consumption_co2_x'] * (1 - row['reduction low'])) 
+                               / row['consumption_co2_y'])**(1/(row['target year']-2000))-1, axis=1)
+    df_paris.to_csv('data/df_paris.csv')
