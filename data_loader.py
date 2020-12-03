@@ -83,9 +83,19 @@ except IOError:
         paris.to_csv('data/paris.csv')
         
     
+    try:
+        regions = pd.read_csv('data/regions.csv', index_col=0)
+        print('opened regions')
+    except:
+        regions = pd.read_csv('https://raw.githubusercontent.com/lukes/ISO-3166-Countries-with-Regional-Codes/master/all/all.csv')
+        regions = regions.rename({'alpha-3':'iso_code_a'},axis=1)
+        regions = regions[['iso_code_a','region','sub-region','region-code','sub-region-code']]
+        regions.to_csv('data/regions.csv')
+        
+        
     ##########################################################################
     #### MERGE FILES TOGETHER
-
+    
     consumption = pd.merge(consumption,gdp,'left',on=['iso_code','year'])
     consumption['gdp'].fillna(consumption['value'],inplace=True)
     df_consumption = consumption[['iso_code','year','co2','consumption_co2','population','gdp']]
@@ -122,10 +132,10 @@ except IOError:
     
     merge5 = pd.merge(merge4,country_a, 'left', on = ['country_a','year'])
     merge6 = pd.merge(merge5,country_b, 'left', on = ['country_b','year'])
-    
+    merge7 = pd.merge(merge6,regions,'left',on=['iso_code_a'])
     
     # save df_master
-    merge6.to_csv('data/df_master.csv')
+    merge7.to_csv('data/df_master.csv')
     
 
     # PARIS - note Japan's target is set on 2013 emissions levels...
