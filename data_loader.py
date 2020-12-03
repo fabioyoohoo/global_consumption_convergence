@@ -7,12 +7,12 @@ Created on Sun Nov 22 15:27:13 2020
 """
 
 import pandas as pd
-import requests
-import json as json
-from zipfile import ZipFile
-from io import BytesIO
-from urllib.request import urlopen
-import pycountry
+# import requests
+# import json as json
+# from zipfile import ZipFile
+# from io import BytesIO
+# from urllib.request import urlopen
+# import pycountry
 
 '''
 PURPOSE:
@@ -25,12 +25,14 @@ PURPOSE:
 
 ### LOOP OVER ALL FILES AND PULL FROM LOCAL /data
 try:
-
+    
     df_master = pd.read_csv('data/df_master.csv',index_col = 0)
     df_consumption = pd.read_csv('data/df_consumption.csv',index_col = 0)
     joiner_official = pd.read_csv('data/joiner_official.csv', index_col = 0)
     df_paris = pd.read_csv('data/df_paris.csv',index_col = 0)
-
+    
+    print('files loaded successfully')
+    
 ### LOOP OVER ALL FILES AND PULL FROM GITHUB IF NOT LOCAL
 except IOError:
 
@@ -73,28 +75,16 @@ except IOError:
     
     
     try:
-        paris = pd.read_csv('data/paris.csv')
+        paris = pd.read_csv('data/paris.csv', index_col = 0)
         print('opened paris')
     except IOError:
         # pull from github
         paris = pd.read_csv('https://raw.githubusercontent.com/fabioyoohoo/global_consumption_convergence/main/data/paris.csv')
-        
-        
-        paris.to_csv('data/joiner_official.csv')
+        paris.to_csv('data/paris.csv')
         
     
     ##########################################################################
     #### MERGE FILES TOGETHER
-    
-    # VARIABLES NEEDED:
-        # country_a
-        # country_b
-        # iso_code (a and b)
-        # df.apply(lambda row: row['gdp'] / row['population'], axis=1)
-    
-    # merge s1:s6 on country_a and country_b -> x
-    # merge x:s7 on country_a
-    # merge x:consumption on iso_code
 
     consumption = pd.merge(consumption,gdp,'left',on=['iso_code','year'])
     consumption['gdp'].fillna(consumption['value'],inplace=True)
@@ -133,9 +123,9 @@ except IOError:
     merge5 = pd.merge(merge4,country_a, 'left', on = ['country_a','year'])
     merge6 = pd.merge(merge5,country_b, 'left', on = ['country_b','year'])
     
-
-    # filters
-    df_master.to_csv('data/df_master.csv')
+    
+    # save df_master
+    merge6.to_csv('data/df_master.csv')
     
 
     # PARIS - note Japan's target is set on 2013 emissions levels...
@@ -144,6 +134,7 @@ except IOError:
     df_paris = pd.merge(paris,polution,'left',left_on=('iso_code','base year'),right_on=('iso_code','year'))
     df_paris = pd.merge(df_paris,polution_2005,'left',left_on=('iso_code'),right_on=('iso_code'))
     df_paris['cagr'] = df_paris.apply(lambda row: 
-                              ((row['consumption_co2_x'] * (1 - row['reduction low'])) 
+                              ((row['consumption_co2_x'] * (1 - row['reduction high'])) 
                                / row['consumption_co2_y'])**(1/(row['target year']-2000))-1, axis=1)
+    
     df_paris.to_csv('data/df_paris.csv')
