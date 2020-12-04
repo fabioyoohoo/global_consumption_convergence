@@ -7,12 +7,7 @@ Created on Sun Nov 22 15:27:13 2020
 """
 
 import pandas as pd
-# import requests
-# import json as json
-# from zipfile import ZipFile
-# from io import BytesIO
-# from urllib.request import urlopen
-# import pycountry
+
 
 '''
 PURPOSE:
@@ -88,8 +83,19 @@ except IOError:
         print('opened regions')
     except:
         regions = pd.read_csv('https://raw.githubusercontent.com/lukes/ISO-3166-Countries-with-Regional-Codes/master/all/all.csv')
+        location = pd.read_csv('https://gist.githubusercontent.com/tadast/8827699/raw/f5cac3d42d16b78348610fc4ec301e9234f82821/countries_codes_and_coordinates.csv')
+        
+        location = location[['Alpha-3 code','Latitude (average)','Longitude (average)']]
+        location = location.rename({'Alpha-3 code':'iso_code_a','Latitude (average)':'lat','Longitude (average)':'lon'},axis=1)
+        location['iso_code_a'] = location['iso_code_a'].str.replace('"','')
+        location['iso_code_a'] = location['iso_code_a'].str.replace(' ','')
+        location['lat'] = location['lat'].str.replace('"','').astype('float')
+        location['lon'] = location['lon'].str.replace('"','').astype('float')
+        
         regions = regions.rename({'alpha-3':'iso_code_a'},axis=1)
         regions = regions[['iso_code_a','region','sub-region','region-code','sub-region-code']]
+        
+        region = pd.merge(regions,location,'left',on=['iso_code_a'])
         regions.to_csv('data/regions.csv')
         
         
@@ -140,11 +146,26 @@ except IOError:
 
     # PARIS - note Japan's target is set on 2013 emissions levels...
     polution = df_consumption[['iso_code','year','consumption_co2']]
-    polution_2005 = polution[polution['year']== 2005]
-    df_paris = pd.merge(paris,polution,'left',left_on=('iso_code','base year'),right_on=('iso_code','year'))
-    df_paris = pd.merge(df_paris,polution_2005,'left',left_on=('iso_code'),right_on=('iso_code'))
-    df_paris['cagr'] = df_paris.apply(lambda row: 
-                              ((row['consumption_co2_x'] * (1 - row['reduction high'])) 
-                               / row['consumption_co2_y'])**(1/(row['target year']-2000))-1, axis=1)
+    polution_base = polution[(polution['year']== 1990) | ((polution['year']== 2005) & 
+                                                     ((polution['iso_code']=='CHN') | 
+                                                      (polution['iso_code']=='USA') | 
+                                                      (polution['iso_code']=='BRA') | 
+                                                      (polution['iso_code']=='IND') |                 
+                                                      (polution['iso_code']=='CAN') | 
+                                                      (polution['iso_code']=='AUS'))) | 
+                        ((polution['year']== 2013) & (polution['iso_code']=='JPN'))]
+    polution_base = polution_base.drop(['year'],axis=1)
+    polution_base.rename(columns = {'consumption_co2':'consumption_co2_base'},inplace=True)
     
+    df_paris = pd.merge(paris,polution_base,'left',on=['iso_code'])
+    df_paris['emissions_goal'] = df_paris['consumption_co2_base']*(1-df_paris['reduction high'])
+    # df_paris = pd.merge(df_paris,polution,'left',on=['iso_code','year'])
+    # df_paris['cagr'] = df_paris.apply(lambda row: 
+    #                           ((row['consumption_co2_x'] * (1 - row['reduction high'])) 
+    #                            / row['consumption_co2_y'])**(1/(row['target year']-2013))-1, axis=1)
+    df_paris.dropna(inplace=True)
+    df_paris['base year'] = df_paris['base year'].astype(int)
+    df_paris['target year'] = df_paris['target year'].astype(int)
+    df_paris.rename(columns = {'iso_code':'iso_code_a'},inplace=True)
+        
     df_paris.to_csv('data/df_paris.csv')
