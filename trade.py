@@ -5,94 +5,336 @@ Created on Tue Nov 17 17:56:12 2020
 
 @author: fhall & eespinosa
 """
-
 import math
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-# from pylab import *
+import seaborn as sns
+import statsmodels.formula.api as sm
 
-# import plotly.offline as py
-# import plotly.graph_objects as go
-# from pandas.compat import StringIO
-# import random
 
-##############################################################################
+
 ### DATA
-year = 2010
-from data_loader import df_master, df_consumption, joiner_official
+from data_loader import df_consumption, joiner_official, df_master, df_paris
+
+df_master.columns
 
 
-# create subsets of the data
-df_subset = df_master[df_master['year'] == year]
-df_subset = df_subset.loc[df_subset.iso_code.notnull()]
+# Paris agreement data
+# paris= pd.read_csv('data/paris.csv')
+# polution = df_consumption[['iso_code','year','consumption_co2']]
 
-consumption_subset = df_consumption[df_consumption['year'] == year]
-consumption_subset = consumption_subset.loc[consumption_subset.co2.notnull()]
-consumption_subset = consumption_subset.loc[consumption_subset['country']!='World']
+# # Select countries and consumption levels according to Paris agreement
+# polution = polution[(polution['year']== 1990) | ((polution['year']== 2005) & ((polution['iso_code']=='CHN') | (polution['iso_code']=='USA') | (polution['iso_code']=='BRA') | (polution['iso_code']=='IND') |                 (polution['iso_code']=='CAN') | (polution['iso_code']=='AUS'))) | ((polution['year']== 2013) &                 (polution['iso_code']=='JPN'))]
+
+# df_paris = pd.merge(paris,polution,'left',left_on=('iso_code'),right_on=('iso_code'))
+# df_paris['reduction high']= df_paris['reduction high'].str.rstrip('%').astype('float') / 100.0
+
+# # Compute emissions goal for the selected countries
+# df_paris['Emissions_goal']= df_paris['consumption_co2']*(1-df_paris['reduction high'])
+# df_paris.dropna(inplace=True)
+# df_paris['year']= df_paris['year'].astype(int)
+# df_paris
 
 
-# THINGS THE SUBSET DATAFRAME NEEDS
-meta = consumption_subset[(consumption_subset.gdp.notnull()) | (consumption_subset.value.notnull())]
-meta['gdp'].fillna(meta['value'],inplace=True)
-meta.drop(['value'],axis=1,inplace=True)
-meta = meta[['iso_code','year','co2','gdp','population']]
+## back to df_master
+df_master = df_master[(df_master.gdp.notnull())]
+df_master['gdp']= df_master['gdp']/1000000 # GDP in millon dollars
+# df = pd.merge(df_master,df_paris[['iso_code','base_year','emisions_goal']],'left',on=['iso_code','year']) # why on year?
+df = pd.merge(df_master,df_paris[['iso_code_a','target year','emissions_goal']],'left',on=['iso_code_a'])
+df = df.loc[df.consumption_co2.notnull()] # not needed
 
-country_b = df_subset[['country_b','imports','exports']].groupby(['country_b']).agg({'imports':'sum','exports':'sum'}).reset_index()
-country_b = pd.merge(country_b, joiner_official, left_on='country_b', right_on='country_a')
-country_b.drop(['country_a'],axis=1,inplace=True)
-country_b = pd.merge(country_b, meta, 'inner', on=['iso_code'])
-country_b.rename(columns = {'imports':'impots_b','exports':'exports_b','iso_code':'iso_code_b',
-                            'co2':'co2_b','gdp':'gdp_b','population':'population_b'}, inplace=True)
-
-country_a = df_subset[['country_a','imports','exports']].groupby(['country_a']).agg({'imports':'sum','exports':'sum'}).reset_index()
-country_a.rename(columns = {'imports':'imports_a','exports':'exports_a'}, inplace=True)
-
-# FINAL MERGE
-df = pd.merge(df_subset,meta,'left',on=['iso_code','year'])
-df = df.loc[df.co2.notnull()]
 
 # COLUMNS NEEDED:
 # group - GDP/Cap
-df['gdp_per_cap'] = df.apply(lambda row: row['gdp'] / row['population'], axis=1)
-# consumption - already have as co2
-df.rename(columns = {'co2':'consumption'}, inplace=True)
-# partn_consump
-df = pd.merge(df,country_b,'left',on=['country_b','year'])
-df = pd.merge(df,country_a,'left',on=['country_a'])
-df = df.loc[df.iso_code_b.notnull()]
-# export_share
-df['exports_share'] = df.apply(lambda row: row['exports'] / row['exports_a'], axis=1)
+df['gdp_percap'] = df.apply(lambda row: row['gdp'] / row['population'], axis=1)
+
+# consumption-based emissions per capita
+df.rename(columns = {'consumption_co2':'consumption'}, inplace=True)
+df['consumption_percap'] = df['consumption']*1000000000000 / df['population']
+df['consumption_goal'] = df['emissions_goal']*1000000000000 / df['population']
+
 # import_share
 df['imports_share'] = df.apply(lambda row: row['imports'] / row['imports_a'], axis=1)
 
-# trade_relation
+# Marginal propensity of external consumption or total Imports: M/GDP
+df['Mg_imports_tot'] = df['imports_a']/df['gdp']
 
-# consumption_transmission
-df['consump_trans'] = 0
-# consumption growth
-co2_growth = df_consumption[df_consumption['year'].isin([2005,2005,2007,2008,2009,2010])]
-co2_growth = co2_growth[['iso_code','co2_growth_abs']].groupby(['iso_code']).agg({'co2_growth_abs':'mean'}).reset_index()
-df = pd.merge(df,co2_growth,'inner',on=['iso_code'])
+# Marginal propensity of imports for each trade partner
+df['MgM_bilateral'] = df['imports']*100/df['gdp']
 
-# alpha
-df['alpha'] = 1
-# beta
-df['beta'] = 1
 
-df = df.rename(columns = {'co2_growth_abs':'consump_growth','co2_b':'partn_consump','community':'group'})
-df = df[~df['country_b'].isin([970,955])] # remove nodes that don't have any outgoing links
+# Growth variables
+growth= df[['country_a', 'iso_code_a','year','region','sub-region','gdp','imports_a','Mg_imports_tot','consumption_percap','population']]
+growth= growth.drop_duplicates(subset=['iso_code_a', 'year'], keep='last') #get aggregates by country-year
+growth
 
-# Dataframe of edges
-# 'country_a','consumption','beta','group'
-nodes = df[['country_a','consumption','beta','group']].groupby(['country_a']).agg({'consumption':'mean','beta':'mean','group':'mean'}).reset_index()
-nodes = nodes.drop_duplicates(subset=['country_a'], keep='first')
-# nodes = df.drop_duplicates(subset=['country_a'], keep='first')
-# nodes= df.drop_duplicates(subset=['country_A'], keep='first')
 
-##############################################################################
-### FUNCTIONS
+# Plot consumption percapita over time
+regional_consumption = growth[['region','consumption_percap','year']].groupby(['region','year']).agg({'consumption_percap':'sum'}).reset_index()
+# sns.lineplot(x="year", y="consumption_percap",hue="iso_code_a", data=growth[growth['region']=='Europe'])
+sns.lineplot(x="year", y="consumption_percap",hue="region", data=regional_consumption)
+
+#compute variation rates of GDP, MgC_imports, and consumption_percap for each year
+growth = growth[growth['year']>= 2000]
+# compute lagged variables
+growth['gdp_lag'] = growth.groupby(['iso_code_a'])['gdp'].shift(1)
+growth['MgM_lag'] = growth.groupby(['iso_code_a'])['Mg_imports_tot'].shift(1)
+growth['consump_lag'] = growth.groupby(['iso_code_a'])['consumption_percap'].shift(1)
+growth = growth.loc[growth['gdp_lag'].notnull()]
+
+# compute variation rates 
+growth['gdp_var']= (growth['gdp']- growth['gdp_lag'])/growth['gdp_lag']
+growth['MgM_var']= (growth['Mg_imports_tot']- growth['MgM_lag'])/growth['MgM_lag']
+growth['consump_var']= (growth['consumption_percap']- growth['consump_lag'])/growth['consump_lag']
+
+
+# Dataframe with growth rates  per country
+#Take average growth rates per country
+df_growth = growth[['iso_code_a','gdp_var','MgM_var','consump_var']].groupby(['iso_code_a']).agg({'gdp_var':'mean','MgM_var':'mean','consump_var':'mean'}).reset_index()
+
+
+# Use growth dataframe to compute parameters for the model Consumption ~ B0+ B1*GDP + B2*Imports
+# get list of countries
+list_countries= growth['iso_code_a'].unique()
+
+# Iterate over each country
+dict_results={}
+for country in list_countries.tolist():
+    df_country= growth[growth['iso_code_a']== country]
+    X= df_country[['gdp','imports_a']]
+    Y= df_country['consumption_percap']
+    result = sm.ols(formula="Y ~ X", data=df_country, missing='drop').fit()
+    dict_results.setdefault('iso_code_a',[]).append(country)
+    dict_results.setdefault('beta0',[]).append(result.params[0]) # Intercept
+    dict_results.setdefault('beta1',[]).append(result.params[1]) # Mg propensity GDP
+    dict_results.setdefault('beta2',[]).append(result.params[2]) # Mg propensity Imports
+    #dic_results.setdefault('resid',[]).append(np.mean(result.resid)) #Residuals
+
+
+result.summary()
+
+
+
+# Convert dictionary with parameters to dataframe
+df_params= pd.DataFrame.from_dict(dict_results)
+
+## Merge computed parameters in the main dataframe
+df= pd.merge(df, df_growth, on=['iso_code_a'], how='inner') #add annual variation rates
+df= pd.merge(df, df_params, on=['iso_code_a'], how='inner') #add annual variation rates
+
+
+df['GDP-X']= df['gdp']-df['exports_a']
+
+
+
+df2000= df[df['year']==2000]
+
+
+# ## Dynamic Model
+
+
+# Dataframe at the country level to define node attributes
+nodes= df2000.drop_duplicates(subset=['country_a'], keep='first')
+nodes= nodes.round(2)
+df2000= df2000.round(3)
+
+
+
+# Classify countries in four groups by GDP
+nodes= nodes.sort_values(by=['gdp'], ascending=False).reset_index(drop=True)
+nodes['index1']=nodes.index
+def classif(r):
+    if r< 20:
+        m= '1'
+    elif r>=20 and r<60:
+        m= '2'
+    elif r>=60 and r<100:
+        m= '3'
+    else:
+        m= '4'
+    return m
+nodes['group'] = nodes.index1.apply(classif)
+nodes
+
+
+
+
+def initialize():
+    global G, nextg, pos
+    # Create graph with edge attributes: Imports, parteners_consumption, and Imports growth rate= alpha
+    G = nx.from_pandas_edgelist(df2000[['country_a','country_b','imports','exports','MgM_bilateral','MgM_var']], 'country_a', 'country_b', 
+                                edge_attr=['imports','exports','MgM_bilateral','MgM_var'], create_using= nx.MultiDiGraph())
+    
+    
+    
+        # set graph layout
+    pos = nx.spring_layout(G)
+        # convert dataframe to dictionary of attributes
+    node_attr = nodes[['country_a','exports_a','imports_a','GDP-X','gdp_var','consumption_percap','beta0','beta1','beta2','group','region','sub-region']].set_index('country_a').to_dict('index')
+    nx.set_node_attributes(G, node_attr)
+    
+    # remove imbalanced node
+    G.remove_node(920)
+    
+    nextg= G.copy()
+
+
+
+def update():
+    global G, nextg
+    
+    # Update GDP with GDP growth rate
+    for i in G.nodes():
+        try:
+            nextg.nodes[i]['GDP'] = (1+ nextg.nodes[i]['gdp_var'])* (nextg.nodes[i]['GDP-X'] + nextg.nodes[i]['exports_a'])
+        except KeyError:
+            pass
+    
+    # Update GDP without exports
+    for i in G.nodes():
+        try:
+            nextg.nodes[i]['GDP-X'] = (1+ G.nodes[i]['gdp_var'])* G.nodes[i]['GDP-X']
+        except KeyError:
+            pass
+    
+    # Update Imports variation at edge level
+    for i, j, k, weight in nextg.edges(data="weight", keys=True): 
+        nextg[i][j][0]['imports']= (1 + (nextg.edges[i,j,0]['MgM_var']))* (nextg.edges[i,j,0]['MgM_bilateral']/100)* nextg.nodes[i]['GDP']
+         
+    
+    # Get total imports
+    for i in nextg.nodes(): 
+        nextg.nodes[i]['imports_a'] = nextg.out_degree(i,'imports')
+     
+    # Update bilateral exports based on updated bilateral imports:
+    for i, j, k, weight in nextg.edges(data="weight", keys=True): 
+        g= nextg[i][j][0]['imports']
+        for j, y, z, w in nextg.edges(data="weight", keys=True):
+            if y== i:
+                nextg[j][y][0]['exports'] = g
+                #print(nextg[j][y][0]['exports'])
+            else:
+                pass
+            
+    # Compute total exports
+    for i in nextg.nodes(): 
+        nextg.nodes[i]['exports_a'] = nextg.out_degree(i,'exports')
+     
+    # Compute consumption-based emissions at node level
+    for i in nextg.nodes(): 
+        try:
+            nextg.nodes[i]['Emissions']= nextg.nodes[i]['beta0'] + nextg.nodes[i]['beta1']*nextg.nodes[i]['GDP'] + nextg.nodes[i]['beta2']*nextg.nodes[i]['imports_a']   
+        except KeyError:
+           nextg.nodes[i]['Emissions']=0
+        # print(i, nextg.nodes[i]['Emissions'])
+    
+    G = nextg
+    return nextg
+
+# def update():
+#     global G, nextg
+
+#     # Update GDP with GDP growth rate
+#     for i in G.nodes():
+#         try:
+#             nextg.nodes[i]['GDP'] = (1+ G.nodes[i]['gdp_var'])* (G.nodes[i]['GDP-X'] + G.nodes[i]['exports_a'])
+#         except:
+#             pass
+        
+#     # Update GDP without exports
+    
+#     for i in G.nodes():
+#         try:
+#             nextg.nodes[i]['GDP-X'] = (1+ G.nodes[i]['gdp_var'])* G.nodes[i]['GDP-X']
+#         except:
+#             pass
+    
+#     # Update Imports variation at edge level
+    
+#     for i, j, k, weight in nextg.edges(data="weight", keys=True): 
+#         nextg[i][j][0]['imports']= (1 + nextg.edges[i,j,0]['MgM_var'])* (nextg.edges[i,j,0]['MgM_bilateral']/100)* nextg.nodes[i]['GDP']
+    
+#     # Get total imports
+    
+#     for i in nextg.nodes(): 
+#         nextg.nodes[i]['imports_a'] = nextg.out_degree(i,'imports')
+    
+#     # Update bilateral exports based on updated bilateral imports:
+    
+#     for i, j, k, weight in nextg.edges(data="weight", keys=True): 
+#         g= nextg[i][j][0]['imports']
+#         for j, y, z, w in nextg.edges(data="weight", keys=True):
+#             if y== i:
+#                 nextg[j][y][0]['exports'] = g
+#             else:
+#                 pass
+     
+#     # Compute total exports
+#     for i in nextg.nodes(): 
+#         nextg.nodes[i]['exports_a'] = nextg.out_degree(i,'exports')
+ 
+    
+#     # Compute consumption-based emissions at node level
+#     for i in nextg.nodes():
+#         try:
+#             nextg.nodes[i]['Emissions']= nextg.nodes[i]['beta0'] + nextg.nodes[i]['beta1']*nextg.nodes[i]['GDP'] + nextg.nodes[i]['beta2']*nextg.nodes[i]['imports_a']   
+    
+#         except:
+#             pass
+#     g, nextg= nextg, g
+
+
+def emissions_trend():
+    global nextg
+    high_income=0
+    uppermiddle_income= 0
+    lowermiddle_income= 0
+    low_income= 0
+    for i in nextg.nodes():
+        if nextg.nodes[i]['group']=='1':
+            high_income+= nextg.nodes[i]['Emissions']
+        elif nextg.nodes[i]['group']=='2':
+            uppermiddle_income+= nextg.nodes[i]['Emissions']
+        elif nextg.nodes[i]['group']=='3':
+            lowermiddle_income+= nextg.nodes[i]['Emissions']
+        else:
+            low_income+= nextg.nodes[i]['Emissions']
+    return high_income, uppermiddle_income, lowermiddle_income, low_income
+
+
+print('here')
+N= 5
+initialize()
+emissions_high=[]
+emissions_middleUpper=[]
+emissions_middleLower=[]
+emissions_low=[]
+networks = []
+
+for i in range(N):
+    X = update()
+    networks.append(X)
+    
+    print(i)
+    H, U, M, L = emissions_trend() # Get consumption by groups at the end of period
+    emissions_high.append(H) # array of total consumption for high income countries
+    emissions_middleUpper.append(U) # array of total consumption for middle income countries
+    emissions_middleLower.append(M)
+    emissions_low.append(L) # array of total consumption for middle income countries
+    print(i)
+    
+
+
+plt.plot(range(N),emissions_high,        label='Consumption High-income countries')
+plt.plot(range(N),emissions_middleUpper, label='Consumption upperMiddle-income countries')
+plt.plot(range(N),emissions_middleLower, label='Consumption lowerMiddle-income countries')
+plt.plot(range(N),emissions_low,         label='Consumption Low-income-countries')
+plt.legend()
+plt.xlabel('Time')
+plt.ylabel('Total carbon dioxide from consumption')
+
 
 def networkBuild(a,b,imports,exports,year):
     print('makeing a trade graph for: ',year)
@@ -119,7 +361,6 @@ def plotNetwork(g):
     nx.draw(g, with_labels = True)
     plt.show()
 
-
 def recordNetworkInfo(g):
     '''
     captures metrics on the network parameter: 
@@ -129,140 +370,3 @@ def recordNetworkInfo(g):
     info = dict()
     info['sg'] = sorted(nx.laplacian_spectrum(g))[1]
     return info
-
-
-##############################################################################
-### CREATE GRAPH
-
-# Create graph with edge attributes: Imports, parteners_consumption, and Imports growth rate= alpha
-G = nx.from_pandas_edgelist(df[['country_a','country_b','imports','partn_consump','alpha']], 'country_a', 'country_b', 
-                            edge_attr=['imports','partn_consump','alpha'], create_using= nx.MultiDiGraph())
-    # set graph layout
-pos = nx.spring_layout(G)
-    # convert dataframe to dictionary of attributes
-node_attr = nodes[['country_a','consumption','beta','group']].set_index('country_a').to_dict('index')
-    # incorporate dictionary of attributes: Consumption, Convergence_rate= Beta, Group= income level
-nx.set_node_attributes(G, node_attr)
-
-
-nextg = nx.MultiDiGraph()
-for i, j, data in G.edges.data(): 
-    nextg.add_edge(i, j, 0, Imports=(1 + data['alpha'])* data['imports'])
-for i, j, k, weight in nextg.edges(data="weight", keys=True):
-    tot_M=nextg.out_degree(i,'imports') # total imports
-    nextg[i][j][0]['import_share'] = data['imports']/tot_M # Imports share
-   
-    
-##############################################################################
-#### MAP
-
-def initialize():
-    global G, nextg, pos
-    # Create graph with edge attributes: Imports, parteners_consumption, and Imports growth rate= alpha
-    G = nx.from_pandas_edgelist(df[['country_a','country_b','imports','partn_consump','alpha']], 'country_a', 'country_b', 
-                                edge_attr=['imports','partn_consump','alpha'], create_using= nx.MultiDiGraph())
-        # set graph layout
-    pos = nx.spring_layout(G)
-        # convert dataframe to dictionary of attributes
-    node_attr = nodes[['country_a','consumption','beta','group']].set_index('country_a').to_dict('index')
-        # incorporate dictionary of attributes: Consumption, Convergence_rate= Beta, Group= income level
-    nx.set_node_attributes(G, node_attr)
-
-    nx.set_edge_attributes(G, [], 'consump_trans')
-    nx.set_edge_attributes(G, [], 'consump_growth')
-    
-    nextg= G.copy()
-    
-#def observe():
-    #global G, nextg, pos
-    #cla()
-    #plt.figure(figsize=(14,14))
-    #nx.draw(G, cmap = cm.winter, vmin = 0, vmax = 1, pos = pos, node_size=12, width=0.1,
-            #node_color = [G.node[i]['Consumption'] for i in G.nodes()])
- 
-    #plt.savefig("network.png", dpi=1000)
-    
-    
-def update():
-    global G, nextg
-
-    # Compute Imports variation 
-    for i, j, k, weight in nextg.edges(data="weight", keys=True): 
-        #nextg.add_edge(i, j, 0, Imports=(1 + data['Alpha'])* data['Imports'])
-        nextg[i][j][0]['imports']= (1 + data['alpha'])* data['imports'] 
-
-    # Compute Imports Share for each edge
-    for i, j, k, weight in nextg.edges(data="weight", keys=True):
-        tot_M=nextg.out_degree(i,'imports') # total imports
-        nextg[i][j][0]['import_share'] = data['imports']/tot_M # Imports share
-
-    # Compute Consumption transmission using = Import_share * Partner_consump
-    for i, j, k, weight in nextg.edges(data="weight", keys=True):
-        nextg[i][j][0]['consump_trans'] = nextg.edges[i,j,0]['import_share'] * data['partn_consump']
-        # nextg[i][j][0]['Consump_trans'] = data['Import_share']* data['Partn_consump']
-
-        # Compute Consumption growth using= Consumption_transmission * Convergence rate Beta
-        nextg[i][j][0]['consump_growth'] = nextg.edges[i,j,0]['consump_trans'] * nextg.nodes(data='beta')[i]
-        # nextg[i][j][0]['Consump_growth'] = data['Consump_trans'] * nextg.nodes(data='Beta')[i]
-        
-    # Compute total consumption in next period
-    # for i in nextg.nodes():
-    for i in nodes['country_a']:
-        nextg.node[i]['consumption'] = nextg.out_degree(i,'consump_growth') + nextg.nodes(data='consumption')[i] 
-        #Update partener_consumption
-        for j in nextg.nodes():
-            if i in nextg.neighbors(j):
-                nextg[j][i][0]['partn_consump']= nextg.node[i]['consumption']
-    
-    # Compute total consumption in next period
-    # for i in nextg.nodes():
-    #     consumption_growth = 0
-    #     for j in nextg.nodes():
-    #         if (j != i) & (nextg.edges[i,j,0]['consump_growth'] != 'nan'):
-    #             consumption_growth += nextg.edges[i,j,0]['consump_growth']
-    #     nextg.node[i]['consumption'] = consumption_growth + G.nodes[i]['consumption'] 
-    #     #Update partener_consumption
-    #     for j in nextg.nodes():
-    #         if i in nextg.neighbors(j):
-    #             nextg[j][i]['partn_consump'] = nextg.nodes[i]['consumption']
-    
-    
-# Total consumption by group of countries (by income-level)    
-def consumption_patterns():
-    global nextg
-    high_income=0
-    middle_income= 0
-    low_income= 0
-    for i in nodes['country_a']:
-        if nextg.node[i]['group']==1:
-            high_income+= nextg.node[i]['consumption']
-        elif nextg.node[i]['group']==2:
-            middle_income+= nextg.node[i]['consumption']
-        else:
-            low_income+= nextg.node[i]['consumption']
-    return high_income, middle_income, low_income
-
-N= 10
-initialize()
-consumption_high=[]
-consumption_middle=[]
-consumption_low=[]
-
-for i in range(N):
-    
-    H, M, L = consumption_patterns() # Get consumption by groups at the end of period
-    consumption_high.append(H) # array of total consumption for high income countries
-    consumption_middle.append(M) # array of total consumption for middle income countries
-    consumption_low.append(L) # array of total consumption for middle income countries
-        
-    update()
-    
-
-    
-plt.plot(range(N),consumption_high, label='Consumption High-income countries')
-plt.plot(range(N),consumption_middle, label='Consumption Middle-income countries')
-plt.plot(range(N),consumption_low, label='Consumption Low-income countries')
-
-plt.xlabel('Time')
-plt.ylabel('Total carbon dioxide from consumption')
-
