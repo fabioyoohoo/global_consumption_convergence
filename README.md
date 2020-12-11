@@ -1,6 +1,7 @@
 # global_consumption_convergence
 
-Use Paris Climate Aggreement as a mechanism for reducing the co2 consumption patterns of respective countries. Focusing on the top emitters United States, China,  
+The convergence of $CO_2$ emissions has gained critical focus across many nations due, in part, to the Paris Climate Agreement in 2015, which brought together 196 countries to sign onto the legally binding international treaty on climate change. The focus, now, is to reach global peaking of emissions as soon as possible in order to achieve a climate neutral world by mid-century. Much of the research has been on production based emissions, with less attention given to the consumption side. This paper uses a dynamic global trade network model to understand how domestic policies may affect global levels of consumption-based $CO_2$. Specifically, changes in consumption and trade behavior can have a the contagious effect, impacting not only the trade partners of a particular country, but also the partners of their partners. The results of this study may extend our empirical understanding for what level of commitment is required to achieve the global $CO_2$ emissions targets laid out in the Paris Climate Agreement.
+
 https://www.carbonbrief.org/paris-2015-tracking-country-climate-pledges
 
 
